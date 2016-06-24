@@ -47,13 +47,26 @@ Resolveopts DEFINITIONS AUTOMATIC TAGS ::=  BEGIN
 			aiFamily	INTEGER,
 			aiSocktype	INTEGER,
 			aiProtocol	INTEGER
-		}
+		} OPTIONAL
 	}
 
 	Sockaddr ::= OCTET STRING
 
 	-- Only capable of returning addrinfo as result, I see no reason for returning multiple, since the client would then have to choose.
-	Result ::= SEQUENCE {
+	Result ::= CHOICE {
+		error ENUMERATED { -- taken from Linux man getaddrinfo
+			eaiAddrfamily,
+			eaiAgain,
+			eaiBadflags,
+			eaiFail,
+			eaiFamily,
+			eaiMemory,
+			eaiNodata,
+			eaiNoname,
+			eaiService,
+			eaiSocktype
+			-- eaiSystem does not really make sense, since we do not set errno
+		},
 		addrinfo SEQUENCE {
 			aiFlags		INTEGER,
 			aiFamily	INTEGER,
