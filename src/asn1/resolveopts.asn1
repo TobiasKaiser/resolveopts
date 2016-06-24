@@ -1,0 +1,68 @@
+Resolveopts DEFINITIONS AUTOMATIC TAGS ::=  BEGIN
+	SocketIntents ::= SEQUENCE {
+		category ENUMERATED {
+			query,
+			bulkTransfer,
+			controlTraffic,
+			keepalives,
+			stream
+		} OPTIONAL,
+		fileSize INTEGER OPTIONAL, -- in bytes
+		duration INTEGER OPTIONAL, -- in seconds
+		bitrate INTEGER OPTIONAL, -- in bytes/second
+		burstiness ENUMERATED {
+			randomBursts,
+			regularBursts,
+			noBursts,
+			bulk
+		} OPTIONAL,
+		timeliness ENUMERATED {
+			streaming,
+			interactive,
+			transfer,
+			backgroundTraffic
+		} OPTIONAL,
+		resilience ENUMERATED {
+			sensitive,
+			tolerant,
+			resilient
+		} OPTIONAL
+	}
+
+	SocketOption ::= SEQUENCE {
+		level INTEGER,
+		optname INTEGER,
+		optval CHOICE {
+			simple		INTEGER,
+			compound	OCTET STRING
+		}
+	}
+
+	Request ::= SEQUENCE {
+		node	IA5String,
+		service	IA5String,
+		intents SocketIntents,
+		hints	SEQUENCE {
+			aiFlags		INTEGER,
+			aiFamily	INTEGER,
+			aiSocktype	INTEGER,
+			aiProtocol	INTEGER
+		}
+	}
+
+	Sockaddr ::= OCTET STRING
+
+	-- Only capable of returning addrinfo as result, I see no reason for returning multiple, since the client would then have to choose.
+	Result ::= SEQUENCE {
+		addrinfo SEQUENCE {
+			aiFlags		INTEGER,
+			aiFamily	INTEGER,
+			aiSocktype	INTEGER,
+			aiProtocol	INTEGER,
+			aiAddr		Sockaddr,
+			aiCanonname	IA5String OPTIONAL,
+			aiBindAddr	Sockaddr OPTIONAL,
+			aiSocketOptions SEQUENCE OF SocketOption
+		}
+	}
+END
