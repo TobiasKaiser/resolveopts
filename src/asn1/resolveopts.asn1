@@ -54,7 +54,7 @@ Resolveopts DEFINITIONS AUTOMATIC TAGS ::=  BEGIN
 
 	-- Only capable of returning addrinfo as result, I see no reason for returning multiple, since the client would then have to choose.
 	Response ::= CHOICE {
-		error ENUMERATED { -- taken from Linux man getaddrinfo
+		gaiError ENUMERATED { -- taken from Linux man getaddrinfo
 			eaiAddrfamily,
 			eaiAgain,
 			eaiBadflags,
@@ -65,8 +65,8 @@ Resolveopts DEFINITIONS AUTOMATIC TAGS ::=  BEGIN
 			eaiNoname,
 			eaiService,
 			eaiSocktype
-			-- eaiSystem does not really make sense, since we do not set errno
 		},
+		systemError INTEGER, -- in case getaddrinfo returns EAI_SYSTEM
 		addrinfo SEQUENCE {
 			aiFlags		INTEGER,
 			aiFamily	INTEGER,

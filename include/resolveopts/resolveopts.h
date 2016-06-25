@@ -13,6 +13,8 @@ int resolveopts_getaddrinfo(const char *node, const char *service, const struct 
 
 void resolveopts_freeaddrinfo(struct resolveopts_addrinfo *res);
 
+char *resolveopts_gai_strerror(int error);
+
 #define RESOLVEOPTS_EAI_ADDRFAMILY	1
 #define RESOLVEOPTS_EAI_AGAIN		2
 #define RESOLVEOPTS_EAI_BADFLAGS	3

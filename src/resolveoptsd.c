@@ -65,12 +65,56 @@ void handle_socket(int connfd) {
 
 	reti=getaddrinfo((char*)req->node.buf, (char*)req->service.buf, req->hints?&hints:NULL, &res);
 
-	if(reti || !res) {
+	if(reti==EAI_SYSTEM) {
+		resp->present=Response_PR_systemError;
+		resp->choice.systemError=errno;
+	} else if(reti) {
 		/* Error occured, return error code to client */
-		resp->present=Response_PR_error;
-		resp->choice.error=Response__error_eaiAgain;
-		
+		resp->present=Response_PR_gaiError;
+
+		switch(reti) {
+			#ifdef EAI_ADDRFAMILY
+			case EAI_ADDRFAMILY:
+				resp->choice.gaiError=Response__gaiError_eaiAddrfamily;
+				break;
+			#endif
+			case EAI_AGAIN:
+				resp->choice.gaiError=Response__gaiError_eaiAgain;
+				break;
+			case EAI_BADFLAGS:
+				resp->choice.gaiError=Response__gaiError_eaiBadflags;
+				break;
+			case EAI_FAIL:
+				resp->choice.gaiError=Response__gaiError_eaiFail;
+				break;
+			case EAI_FAMILY:
+				resp->choice.gaiError=Response__gaiError_eaiFamily;
+				break;
+			case EAI_MEMORY:
+				resp->choice.gaiError=Response__gaiError_eaiMemory;
+				break;
+			#ifdef EAI_NODATA // its only defined with _GNU_SOURCE o.O
+			case EAI_NODATA:
+				resp->choice.gaiError=Response__gaiError_eaiNodata;
+				break;
+			#endif
+			case EAI_NONAME:
+				resp->choice.gaiError=Response__gaiError_eaiNoname;
+				break;
+			case EAI_SERVICE:
+				resp->choice.gaiError=Response__gaiError_eaiService;
+				break;
+			case EAI_SOCKTYPE:
+				resp->choice.gaiError=Response__gaiError_eaiSocktype;
+				break;
+			case EAI_SYSTEM:
+			default:
+				printf("unresolvable return code %i from getaddrinfo translated to EAI_AGAIN\n", reti);
+				resp->choice.gaiError=Response__gaiError_eaiAgain;
+				goto error;
+		}
 	} else {
+		assert(res);
 		resp->present=Response_PR_addrinfo;
 
 		assert(res!=NULL); //TODO: make this prettier

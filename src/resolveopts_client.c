@@ -8,6 +8,7 @@
 #include "asn1/Request.h"
 #include <unistd.h>
 #include "ber_rw_helper.h"
+#include <errno.h>
 
 
 #include <resolveopts/resolveopts.h>
@@ -19,7 +20,8 @@ int resolveopts_getaddrinfo(const char *node, const char *service, const struct 
 	asn_enc_rval_t retenc;
 	asn_dec_rval_t retdec;
 	int reti;
-	int own_retval=0;	
+	int own_retval=0;
+	int set_errno_at_leave=0;
 
 	*res=NULL;
 
@@ -74,44 +76,47 @@ int resolveopts_getaddrinfo(const char *node, const char *service, const struct 
 		goto error;
 	}
 
-	asn_fprint(stdout, &asn_DEF_Response, resp);
+	//asn_fprint(stdout, &asn_DEF_Response, resp);
 
 	/* Process response */
-	if(resp->present==Response_PR_error) {
-		switch(resp->choice.error) {
-			case Response__error_eaiAddrfamily:
+	if(resp->present==Response_PR_gaiError) {
+		switch(resp->choice.gaiError) {
+			case Response__gaiError_eaiAddrfamily:
 				own_retval=RESOLVEOPTS_EAI_ADDRFAMILY;
 				break;
-			case Response__error_eaiAgain:
+			case Response__gaiError_eaiAgain:
 				own_retval=RESOLVEOPTS_EAI_AGAIN;
 				break;
-			case Response__error_eaiBadflags:
+			case Response__gaiError_eaiBadflags:
 				own_retval=RESOLVEOPTS_EAI_BADFLAGS;
 				break;
-			case Response__error_eaiFail:
+			case Response__gaiError_eaiFail:
 				own_retval=RESOLVEOPTS_EAI_FAIL;
 				break;
-			case Response__error_eaiFamily:
+			case Response__gaiError_eaiFamily:
 				own_retval=RESOLVEOPTS_EAI_FAMILY;
 				break;
-			case Response__error_eaiMemory:
+			case Response__gaiError_eaiMemory:
 				own_retval=RESOLVEOPTS_EAI_MEMORY;
 				break;
-			case Response__error_eaiNodata:
+			case Response__gaiError_eaiNodata:
 				own_retval=RESOLVEOPTS_EAI_NODATA;
 				break;
-			case Response__error_eaiNoname:
+			case Response__gaiError_eaiNoname:
 				own_retval=RESOLVEOPTS_EAI_NONAME;
 				break;
-			case Response__error_eaiService:
+			case Response__gaiError_eaiService:
 				own_retval=RESOLVEOPTS_EAI_SERVICE;
 				break;
-			case Response__error_eaiSocktype:
+			case Response__gaiError_eaiSocktype:
 				own_retval=RESOLVEOPTS_EAI_SOCKTYPE;
 				break;
 			default:
 				own_retval=RESOLVEOPTS_EAI_COMM;
 		}
+	} else if(resp->present==Response_PR_systemError) {
+		own_retval=RESOLVEOPTS_EAI_SYSTEM;
+		set_errno_at_leave=resp->choice.systemError;
 	} else if(resp->present==Response_PR_addrinfo) {
 		*res=malloc(sizeof(struct resolveopts_addrinfo));
 		if(*res==NULL) {
@@ -159,6 +164,9 @@ cleanup:
 	asn_DEF_Request.free_struct(&asn_DEF_Request, req, 0);
 	//asn_DEF_Response.free_struct(&asn_DEF_Response, resp, 0);
 
+	if(set_errno_at_leave)
+		errno=set_errno_at_leave;
+
 	return own_retval;
 }
 
@@ -173,4 +181,24 @@ void resolveopts_freeaddrinfo(struct resolveopts_addrinfo *res) {
 		res->ai_addr=NULL;
 	}
 	free(res);
+}
+
+char *resolveopts_gai_strerror(int error) {
+
+	switch(error) {
+		case RESOLVEOPTS_EAI_ADDRFAMILY: 	return "address family not supported";
+		case RESOLVEOPTS_EAI_AGAIN:			return "temporary name resolution failure";
+		case RESOLVEOPTS_EAI_BADFLAGS:		return "invalid flags";
+		case RESOLVEOPTS_EAI_FAIL:			return "permanent name resolution failure";
+		case RESOLVEOPTS_EAI_FAMILY:		return "address family not supported";
+		case RESOLVEOPTS_EAI_MEMORY:		return "memory allocation failed";
+		case RESOLVEOPTS_EAI_NODATA:		return "no network address defined for host";
+		case RESOLVEOPTS_EAI_NONAME:		return "host or service not known";
+		case RESOLVEOPTS_EAI_SERVICE:		return "service not supported for socket type";
+		case RESOLVEOPTS_EAI_SOCKTYPE:		return "socket type not supported";
+		case RESOLVEOPTS_EAI_SYSTEM:		return "system error";
+		case RESOLVEOPTS_EAI_OVERFLOW:		return "argument too long";
+		case RESOLVEOPTS_EAI_COMM:			return "error communicating with resolveopts daemon";
+	}
+	return "unknown error from resolveopts_getaddrinfo";
 }

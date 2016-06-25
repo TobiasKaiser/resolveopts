@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
 
 	if(ret) {
 		//...
-		printf("error=%i\n", ret);
+		printf("error=%i (\"%s\")\n", ret, resolveopts_gai_strerror(ret));
 		return 1;
 	} else {
 		char hostname[NI_MAXHOST];
@@ -31,7 +31,16 @@ int main(int argc, char *argv[]) {
 			printf("getnameinfo failed\n");
 			return 1;
 		}
+		printf("res->ai_flags=%i\n", res->ai_flags);
+		printf("res->ai_family=%i\n", res->ai_family);
+		printf("res->ai_socktype=%i\n", res->ai_socktype);
+		printf("res->ai_protocol=%i\n", res->ai_protocol);
+
+		printf("res->ai_addrlen=%i\n", res->ai_addrlen);
 		printf("res->ai_addr=%s\n", hostname);
+
+		printf("res->ai_canonname=%s\n", res->ai_canonname?res->ai_canonname:"NULL");
+		printf("res->ai_next=%p\n", res->ai_next);
 	}
 
 	return 0;
