@@ -73,6 +73,7 @@ void handle_socket(int connfd) {
 		resp->present=Response_PR_gaiError;
 
 		switch(reti) {
+			/* See https://sourceware.org/bugzilla/show_bug.cgi?id=6452 for why we get weird return codes */
 			#ifdef EAI_ADDRFAMILY
 			case EAI_ADDRFAMILY:
 				resp->choice.gaiError=Response__gaiError_eaiAddrfamily;
@@ -93,7 +94,7 @@ void handle_socket(int connfd) {
 			case EAI_MEMORY:
 				resp->choice.gaiError=Response__gaiError_eaiMemory;
 				break;
-			#ifdef EAI_NODATA // its only defined with _GNU_SOURCE o.O
+			#ifdef EAI_NODATA
 			case EAI_NODATA:
 				resp->choice.gaiError=Response__gaiError_eaiNodata;
 				break;
