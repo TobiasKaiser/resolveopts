@@ -65,14 +65,13 @@ void handle_socket(int connfd) {
 
 	reti=getaddrinfo((char*)req->node.buf, (char*)req->service.buf, req->hints?&hints:NULL, &res);
 
-	if(reti) {
+	if(reti || !res) {
 		/* Error occured, return error code to client */
 		resp->present=Response_PR_error;
 		resp->choice.error=Response__error_eaiAgain;
 		
 	} else {
 		resp->present=Response_PR_addrinfo;
-		printf("z\n");
 
 		assert(res!=NULL); //TODO: make this prettier
 		/* Successful resolution, return first element of res to client */
@@ -94,7 +93,6 @@ void handle_socket(int connfd) {
 			goto error;
 		}
 	}
-	printf("a\n");
 
 	/* Send response */
 	if(ber_write_helper(&asn_DEF_Response, resp, connfd)<0) {
@@ -107,7 +105,6 @@ void handle_socket(int connfd) {
 		asn_fprint(stdout, &asn_DEF_Response, resp);
 	}
 
-	sleep(1);
 	goto cleanup;
 error:
 	/* ... */

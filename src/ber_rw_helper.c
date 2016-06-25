@@ -12,9 +12,9 @@ static int debug=0;
  */
 static int write_stream(const void *buffer, size_t size, void *application_specific_key) {
 	int fd=*((int*) application_specific_key);
-	printf("XXX=%zi, fd=%i\n", size, fd);
+
 	ssize_t bytes_written=write(fd, buffer, size);
-	printf("fin\n");
+
 	if(bytes_written!=size) {
 		
 		return -1;
@@ -27,11 +27,11 @@ static int write_stream(const void *buffer, size_t size, void *application_speci
 int ber_read_helper(struct asn_TYPE_descriptor_s *type_descriptor, void **struct_ptr, int readfd) {
 
 	asn_dec_rval_t retdec;
-
+	int bufferfill_lastread=0;
 	do {
 		char recv_buf[1024];
 
-		ssize_t bytes_read=read(readfd, recv_buf, sizeof(recv_buf));
+		ssize_t bytes_read=read(readfd, recv_buf+bufferfill_lastread, sizeof(recv_buf)-bufferfill_lastread);
 		if(bytes_read<0) {
 			perror("read failed\n");
 			return -1;
@@ -43,7 +43,11 @@ int ber_read_helper(struct asn_TYPE_descriptor_s *type_descriptor, void **struct
 			printf("read reached eof\n");
 			return -1;
 		}
+		bytes_read+=bufferfill_lastread;
 		retdec=ber_decode(0, type_descriptor, struct_ptr, recv_buf, bytes_read);
+		bufferfill_lastread=bytes_read-retdec.consumed;
+		memmove(recv_buf, recv_buf+retdec.consumed, bufferfill_lastread);
+
 	} while(retdec.code==RC_WMORE);
 	if(retdec.code!=RC_OK) {
 		printf("decoding failed\n");

@@ -13,30 +13,15 @@
 #include <resolveopts/resolveopts.h>
 
 
-/*
- * EXPECTED RETURN VALUES:
- *  -1: Failed to consume bytes. Abort the mission.
- * Non-negative return values indicate success, and ignored.
- */
-static int write_stream(const void *buffer, size_t size, void *application_specific_key) {
-	int fd=*((int*) application_specific_key);
-	ssize_t bytes_written=write(fd, buffer, size);
-	if(bytes_written!=size)
-		return -1;
-
-	return 0;
-	// TODO: Fix that we return an error if write returns early but without error!
-}
-
-
 int resolveopts_getaddrinfo(const char *node, const char *service, const struct resolveopts_addrinfo *hints, struct resolveopts_addrinfo **res) {
-
 
 	struct Request *req;
 	asn_enc_rval_t retenc;
 	asn_dec_rval_t retdec;
 	int reti;
 	int own_retval=0;	
+
+	*res=NULL;
 
 	/* Create request */
 
@@ -76,45 +61,116 @@ int resolveopts_getaddrinfo(const char *node, const char *service, const struct 
 	connect(fd, (struct sockaddr *)&addr, sizeof(struct sockaddr_un));
 
 	/* Send request */
-	retenc=der_encode(&asn_DEF_Request, req, write_stream, &fd);
-
-	if(retenc.encoded<0) {
-		printf("a");
+	if(ber_write_helper(&asn_DEF_Request, req, fd)<0) {
 		own_retval=RESOLVEOPTS_EAI_COMM;
 		goto error;
 	}
 
+	/* Read response */
 	struct Response *resp=NULL;
-	char recv_buf[1024];
-	ssize_t bytes_read=0;
-	size_t b;
-	do {
-		b=read(fd, recv_buf+bytes_read, sizeof(recv_buf)-bytes_read);
-		if(b<0) {
-			own_retval=RESOLVEOPTS_EAI_COMM;
-			goto error;
-		}
-		bytes_read+=b;
-	} while(b!=0);
-	
-	retdec=ber_decode(0, &asn_DEF_Response, (void **) &resp, recv_buf, bytes_read);
 
-	if(retdec.code!=RC_OK) {
+	if(ber_read_helper(&asn_DEF_Response, (void**) &resp, fd)<0) {
 		own_retval=RESOLVEOPTS_EAI_COMM;
 		goto error;
 	}
-
 
 	asn_fprint(stdout, &asn_DEF_Response, resp);
 
+	/* Process response */
+	if(resp->present==Response_PR_error) {
+		switch(resp->choice.error) {
+			case Response__error_eaiAddrfamily:
+				own_retval=RESOLVEOPTS_EAI_ADDRFAMILY;
+				break;
+			case Response__error_eaiAgain:
+				own_retval=RESOLVEOPTS_EAI_AGAIN;
+				break;
+			case Response__error_eaiBadflags:
+				own_retval=RESOLVEOPTS_EAI_BADFLAGS;
+				break;
+			case Response__error_eaiFail:
+				own_retval=RESOLVEOPTS_EAI_FAIL;
+				break;
+			case Response__error_eaiFamily:
+				own_retval=RESOLVEOPTS_EAI_FAMILY;
+				break;
+			case Response__error_eaiMemory:
+				own_retval=RESOLVEOPTS_EAI_MEMORY;
+				break;
+			case Response__error_eaiNodata:
+				own_retval=RESOLVEOPTS_EAI_NODATA;
+				break;
+			case Response__error_eaiNoname:
+				own_retval=RESOLVEOPTS_EAI_NONAME;
+				break;
+			case Response__error_eaiService:
+				own_retval=RESOLVEOPTS_EAI_SERVICE;
+				break;
+			case Response__error_eaiSocktype:
+				own_retval=RESOLVEOPTS_EAI_SOCKTYPE;
+				break;
+			default:
+				own_retval=RESOLVEOPTS_EAI_COMM;
+		}
+	} else if(resp->present==Response_PR_addrinfo) {
+		*res=malloc(sizeof(struct resolveopts_addrinfo));
+		if(*res==NULL) {
+			own_retval=RESOLVEOPTS_EAI_MEMORY;
+			goto error;
+		}
+		memset(*res, 0, sizeof(struct resolveopts_addrinfo));
+
+		(*res)->ai_flags=resp->choice.addrinfo.aiFlags;
+		(*res)->ai_family=resp->choice.addrinfo.aiFamily;
+		(*res)->ai_socktype=resp->choice.addrinfo.aiSocktype;
+		(*res)->ai_protocol=resp->choice.addrinfo.aiProtocol;
+		(*res)->ai_addrlen=resp->choice.addrinfo.aiAddr.size;
+		(*res)->ai_addr=malloc(resp->choice.addrinfo.aiAddr.size);
+		if((*res)->ai_addr==NULL) {
+			own_retval=RESOLVEOPTS_EAI_MEMORY;
+			goto error;
+		}
+		memcpy((*res)->ai_addr, resp->choice.addrinfo.aiAddr.buf, resp->choice.addrinfo.aiAddr.size);
+		if(resp->choice.addrinfo.aiCanonname) {
+			(*res)->ai_canonname=malloc(resp->choice.addrinfo.aiCanonname->size+1);
+			if((*res)->ai_canonname==NULL) {
+				own_retval=RESOLVEOPTS_EAI_MEMORY;
+				goto error;
+			}
+			strcpy((*res)->ai_canonname, (char*) resp->choice.addrinfo.aiCanonname->buf);
+		}
+
+	} else { /* resp->present = Response_PR_NOTHING */
+		own_retval=RESOLVEOPTS_EAI_COMM;
+	}
+
 	goto cleanup;
 error:
-	
+	if(*res) {
+		// We wanted to return an addrinfo, but then an error occured and now we have to free it.
+		resolveopts_freeaddrinfo(*res);
+		*res=NULL;
+	}
+
 cleanup:
+	
 	if(fd>0)
 		close(fd);
 	asn_DEF_Request.free_struct(&asn_DEF_Request, req, 0);
 	//asn_DEF_Response.free_struct(&asn_DEF_Response, resp, 0);
 
 	return own_retval;
+}
+
+void resolveopts_freeaddrinfo(struct resolveopts_addrinfo *res) {
+	assert(res->ai_next==NULL); /* We never return more than one element at the moment */
+	if(res->ai_canonname) {
+		free(res->ai_canonname);
+		res->ai_canonname=NULL;
+	}
+	if(res->ai_addr) {
+		free(res->ai_addr);
+		res->ai_addr=NULL;
+	}
+	free(res);
 }

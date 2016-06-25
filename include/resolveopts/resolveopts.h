@@ -11,13 +11,18 @@ struct resolveopts_addrinfo {
 
 int resolveopts_getaddrinfo(const char *node, const char *service, const struct resolveopts_addrinfo *hints, struct resolveopts_addrinfo **res);
 
-#define RESOLVEOPTS_EAI_AGAIN		1
-#define RESOLVEOPTS_EAI_BADFLAGS	2
-#define RESOLVEOPTS_EAI_FAMILY		3
-#define RESOLVEOPTS_EAI_MEMORY		4
-#define RESOLVEOPTS_EAI_NONAME		5
-#define RESOLVEOPTS_EAI_SERVICE		6
-#define RESOLVEOPTS_EAI_SOCKTYPE	7
-#define RESOLVEOPTS_EAI_SYSTEM		8
-#define RESOLVEOPTS_EAI_OVERFLOW	9
-#define RESOLVEOPTS_EAI_COMM		10
+void resolveopts_freeaddrinfo(struct resolveopts_addrinfo *res);
+
+#define RESOLVEOPTS_EAI_ADDRFAMILY	1
+#define RESOLVEOPTS_EAI_AGAIN		2
+#define RESOLVEOPTS_EAI_BADFLAGS	3
+#define RESOLVEOPTS_EAI_FAIL		4
+#define RESOLVEOPTS_EAI_FAMILY		5
+#define RESOLVEOPTS_EAI_MEMORY		6
+#define RESOLVEOPTS_EAI_NODATA		7
+#define RESOLVEOPTS_EAI_NONAME		8
+#define RESOLVEOPTS_EAI_SERVICE		9
+#define RESOLVEOPTS_EAI_SOCKTYPE	10
+#define RESOLVEOPTS_EAI_SYSTEM		11
+#define RESOLVEOPTS_EAI_OVERFLOW	12
+#define RESOLVEOPTS_EAI_COMM		13
