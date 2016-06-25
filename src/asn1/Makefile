@@ -3,14 +3,14 @@ ASN_MODULE_SOURCES=	\
 	SocketOption.c	\
 	Request.c	\
 	Sockaddr.c	\
-	Result.c
+	Response.c
 
 ASN_MODULE_HEADERS=	\
 	SocketIntents.h	\
 	SocketOption.h	\
 	Request.h	\
 	Sockaddr.h	\
-	Result.h
+	Response.h
 
 ASN_MODULE_HEADERS+=ENUMERATED.h
 ASN_MODULE_SOURCES+=ENUMERATED.c
@@ -72,7 +72,6 @@ ASN_MODULE_HEADERS+=per_opentype.h
 ASN_MODULE_SOURCES+=per_opentype.c
 
 
-lib_LTLIBRARIES=libsomething.la
 libsomething_la_SOURCES=$(ASN_MODULE_SOURCES) $(ASN_MODULE_HEADERS)
 
 # This file may be used as an input for make(3)

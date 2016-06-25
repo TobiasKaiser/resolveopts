@@ -1,3 +1,10 @@
 src/asn1/*.c
 src/asn1/*.h
+src/asn1/*.o
 src/asn1/Makefile.am.sample
+*.o
+*.so
+*.so.*
+*.a
+src/example_client
+src/resolveoptsd

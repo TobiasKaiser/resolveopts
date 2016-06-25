@@ -38,6 +38,8 @@ Resolveopts DEFINITIONS AUTOMATIC TAGS ::=  BEGIN
 		}
 	}
 
+	Sockaddr ::= OCTET STRING
+
 	Request ::= SEQUENCE {
 		node	IA5String,
 		service	IA5String,
@@ -50,10 +52,8 @@ Resolveopts DEFINITIONS AUTOMATIC TAGS ::=  BEGIN
 		} OPTIONAL
 	}
 
-	Sockaddr ::= OCTET STRING
-
 	-- Only capable of returning addrinfo as result, I see no reason for returning multiple, since the client would then have to choose.
-	Result ::= CHOICE {
+	Response ::= CHOICE {
 		error ENUMERATED { -- taken from Linux man getaddrinfo
 			eaiAddrfamily,
 			eaiAgain,
