@@ -7,6 +7,8 @@
 #include "asn1/Response.h"
 #include "asn1/Request.h"
 #include <unistd.h>
+#include "ber_rw_helper.h"
+
 
 #include <resolveopts/resolveopts.h>
 
@@ -32,28 +34,29 @@ int resolveopts_getaddrinfo(const char *node, const char *service, const struct 
 
 	struct Request *req;
 	asn_enc_rval_t retenc;
+	asn_dec_rval_t retdec;
 	int reti;
 	int own_retval=0;	
 
 	/* Create request */
 
 	if((req=malloc(sizeof(struct Request)))==NULL) {
-		own_retval=EAI_MEMORY;
+		own_retval=RESOLVEOPTS_EAI_MEMORY;
 		goto error;
 	}
 	memset(req, 0, sizeof(struct Request));
 
 	if(OCTET_STRING_fromString(&req->node, node)<0) {
-		own_retval=EAI_MEMORY;
+		own_retval=RESOLVEOPTS_EAI_MEMORY;
 		goto error;
 	}
 	if(OCTET_STRING_fromString(&req->service, service)<0) {
-		own_retval=EAI_MEMORY;
+		own_retval=RESOLVEOPTS_EAI_MEMORY;
 		goto error;
 	}
 	if(hints) {
 		if((req->hints=malloc(sizeof(struct Request__hints)))==NULL) {
-			own_retval=EAI_MEMORY;
+			own_retval=RESOLVEOPTS_EAI_MEMORY;
 			goto error;
 		}
 		memset(req->hints, 0, sizeof(struct Request__hints));
@@ -65,7 +68,7 @@ int resolveopts_getaddrinfo(const char *node, const char *service, const struct 
 
 	/* Connect to server */
 	struct sockaddr_un addr;
-	int fd;
+	int fd=-1;
 	memset(&addr, 0, sizeof(struct sockaddr_un));
 	addr.sun_family=AF_UNIX;
 	strcpy(addr.sun_path, "/tmp/resolveopts");
@@ -76,19 +79,42 @@ int resolveopts_getaddrinfo(const char *node, const char *service, const struct 
 	retenc=der_encode(&asn_DEF_Request, req, write_stream, &fd);
 
 	if(retenc.encoded<0) {
-		own_retval=EAI_FAIL; //TODO: own error code
+		printf("a");
+		own_retval=RESOLVEOPTS_EAI_COMM;
 		goto error;
 	}
 
-	//ret=xer_fprint(stdout, &asn_DEF_Request, &myRq);
+	struct Response *resp=NULL;
+	char recv_buf[1024];
+	ssize_t bytes_read=0;
+	size_t b;
+	do {
+		b=read(fd, recv_buf+bytes_read, sizeof(recv_buf)-bytes_read);
+		if(b<0) {
+			own_retval=RESOLVEOPTS_EAI_COMM;
+			goto error;
+		}
+		bytes_read+=b;
+	} while(b!=0);
+	
+	retdec=ber_decode(0, &asn_DEF_Response, (void **) &resp, recv_buf, bytes_read);
+
+	if(retdec.code!=RC_OK) {
+		own_retval=RESOLVEOPTS_EAI_COMM;
+		goto error;
+	}
+
+
+	asn_fprint(stdout, &asn_DEF_Response, resp);
+
 	goto cleanup;
 error:
 	
 cleanup:
+	if(fd>0)
+		close(fd);
 	asn_DEF_Request.free_struct(&asn_DEF_Request, req, 0);
 	//asn_DEF_Response.free_struct(&asn_DEF_Response, resp, 0);
 
-
 	return own_retval;
-
 }

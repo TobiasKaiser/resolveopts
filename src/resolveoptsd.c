@@ -10,6 +10,8 @@
 #include <stdbool.h>
 #include "asn1/Response.h"
 #include "asn1/Request.h"
+#include "ber_rw_helper.h"
+
 
 const static char *server_socket_path="/tmp/resolveopts";
 
@@ -26,51 +28,17 @@ void *xmalloc(size_t s) {
 	return ret;
 }
 
-/*
- * EXPECTED RETURN VALUES:
- *  -1: Failed to consume bytes. Abort the mission.
- * Non-negative return values indicate success, and ignored.
- */
-static int write_stream(const void *buffer, size_t size, void *application_specific_key) {
-	int fd=*((int*) application_specific_key);
-	ssize_t bytes_written=write(fd, buffer, size);
-	if(bytes_written!=size) {
-		printf("XXX\n");
-		return -1;
-	}
-
-	return 0;
-	// TODO: Fix that we return an error if write returns early but without error!
-}
-
 
 void handle_socket(int connfd) {
 	struct Request *req=NULL;
-	asn_dec_rval_t retdec;
+	
 	int reti;
 	
 	/* Read request */
 	if(debug)
 		printf("fd %i: connected, reading request now\n", connfd);
-	do {
-		char recv_buf[1024];
 
-		ssize_t bytes_read=read(connfd, recv_buf, sizeof(recv_buf));
-		if(bytes_read<0) {
-			perror("read failed\n");
-			goto error;
-		}
-		if(debug)
-			printf("fd %i: received %zi bytes\n", connfd, bytes_read);
-		if(bytes_read==0) {
-			// end-of-file
-			printf("read reached eof\n");
-			goto error;
-		}
-		retdec=ber_decode(0, &asn_DEF_Request, (void **) &req, recv_buf, bytes_read);
-	} while(retdec.code==RC_WMORE);
-	if(retdec.code!=RC_OK) {
-		printf("decoding failed\n");
+	if(ber_read_helper(&asn_DEF_Request, (void **) &req, connfd)<0) {
 		goto error;
 	}
 	if(debug) {
@@ -100,35 +68,46 @@ void handle_socket(int connfd) {
 	if(reti) {
 		/* Error occured, return error code to client */
 		resp->present=Response_PR_error;
+		resp->choice.error=Response__error_eaiAgain;
 		
 	} else {
+		resp->present=Response_PR_addrinfo;
+		printf("z\n");
+
 		assert(res!=NULL); //TODO: make this prettier
 		/* Successful resolution, return first element of res to client */
-		resp->present=Response_PR_addrinfo;
+
 		resp->choice.addrinfo.aiFlags=res->ai_flags;
 		resp->choice.addrinfo.aiFamily=res->ai_family;
 		resp->choice.addrinfo.aiSocktype=res->ai_socktype;
 		resp->choice.addrinfo.aiProtocol=res->ai_protocol;
+		printf("a\n");
+
 		if(res->ai_canonname) {
 			if(OCTET_STRING_fromString(resp->choice.addrinfo.aiCanonname, res->ai_canonname)<0) {
+				printf("failed to encode octet string");
 				goto error;
 			}
 		}
-		 OCTET_STRING_fromBuf(&resp->choice.addrinfo.aiAddr, (char *) res->ai_addr, res->ai_addrlen);
+		if(OCTET_STRING_fromBuf(&resp->choice.addrinfo.aiAddr, (char *) res->ai_addr, res->ai_addrlen)<0) {
+			printf("failed to encode octet string");
+			goto error;
+		}
 	}
-
-
-	
+	printf("a\n");
 
 	/* Send response */
-	asn_enc_rval_t retenc;
-	retenc=der_encode(&asn_DEF_Response, &resp, write_stream, &connfd);
+	if(ber_write_helper(&asn_DEF_Response, resp, connfd)<0) {
+		printf("failed to send response");
+		goto error;
+	}
 
 	if(debug) {
-		printf("fd %i: sent %zi bytes:\n", connfd, retenc.encoded);
+		printf("fd %i: sent:\n", connfd);
 		asn_fprint(stdout, &asn_DEF_Response, resp);
 	}
 
+	sleep(1);
 	goto cleanup;
 error:
 	/* ... */
