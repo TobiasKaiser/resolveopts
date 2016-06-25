@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <netdb.h>
 #include <error.h>
 #include <errno.h>
 #include <unistd.h>
@@ -31,7 +32,7 @@ void *xmalloc(size_t s) {
  * Non-negative return values indicate success, and ignored.
  */
 static int write_stream(const void *buffer, size_t size, void *application_specific_key) {
-	int fd=(int) application_specific_key;
+	int fd=*((int*) application_specific_key);
 	ssize_t bytes_written=write(fd, buffer, size);
 	if(bytes_written!=size) {
 		printf("XXX\n");
@@ -60,7 +61,7 @@ void handle_socket(int connfd) {
 			goto error;
 		}
 		if(debug)
-			printf("fd %i: received %i bytes\n", connfd, bytes_read);
+			printf("fd %i: received %zi bytes\n", connfd, bytes_read);
 		if(bytes_read==0) {
 			// end-of-file
 			printf("read reached eof\n");
@@ -77,22 +78,54 @@ void handle_socket(int connfd) {
 		asn_fprint(stdout, &asn_DEF_Request, req);
 	}
 
-
-	/* Perform requested name resolution */
-
 	/* Create response */
 	struct Response *resp=NULL;
 	resp=xmalloc(sizeof(struct Response));
-	resp->present=Response_PR_addrinfo;
-	resp->choice.addrinfo.aiFamily=123456;
 
+
+	/* Perform requested name resolution
+ 	 * At the moment, we just do a native name resolution here.
+	 */
+	struct addrinfo hints, *res=NULL;
+	memset(&hints, 0, sizeof(struct addrinfo));
+	if(req->hints) {
+		hints.ai_family=req->hints->aiFamily;
+		hints.ai_socktype=req->hints->aiSocktype;
+		hints.ai_protocol=req->hints->aiProtocol;
+		hints.ai_flags=req->hints->aiFlags;
+	}
+
+	reti=getaddrinfo((char*)req->node.buf, (char*)req->service.buf, req->hints?&hints:NULL, &res);
+
+	if(reti) {
+		/* Error occured, return error code to client */
+		resp->present=Response_PR_error;
+		
+	} else {
+		assert(res!=NULL); //TODO: make this prettier
+		/* Successful resolution, return first element of res to client */
+		resp->present=Response_PR_addrinfo;
+		resp->choice.addrinfo.aiFlags=res->ai_flags;
+		resp->choice.addrinfo.aiFamily=res->ai_family;
+		resp->choice.addrinfo.aiSocktype=res->ai_socktype;
+		resp->choice.addrinfo.aiProtocol=res->ai_protocol;
+		if(res->ai_canonname) {
+			if(OCTET_STRING_fromString(resp->choice.addrinfo.aiCanonname, res->ai_canonname)<0) {
+				goto error;
+			}
+		}
+		 OCTET_STRING_fromBuf(&resp->choice.addrinfo.aiAddr, (char *) res->ai_addr, res->ai_addrlen);
+	}
+
+
+	
 
 	/* Send response */
 	asn_enc_rval_t retenc;
-	retenc=der_encode(&asn_DEF_Response, &resp, write_stream, (void*)connfd);
+	retenc=der_encode(&asn_DEF_Response, &resp, write_stream, &connfd);
 
 	if(debug) {
-		printf("fd %i: sent %i bytes:\n", connfd, retenc.encoded);
+		printf("fd %i: sent %zi bytes:\n", connfd, retenc.encoded);
 		asn_fprint(stdout, &asn_DEF_Response, resp);
 	}
 
@@ -100,10 +133,8 @@ void handle_socket(int connfd) {
 error:
 	/* ... */
 cleanup:
-	if(req)
-		asn_DEF_Request.free_struct(&asn_DEF_Request, req, 0);
-	if(resp)
-		asn_DEF_Response.free_struct(&asn_DEF_Response, resp, 0);
+	asn_DEF_Request.free_struct(&asn_DEF_Request, req, 0);
+	asn_DEF_Response.free_struct(&asn_DEF_Response, resp, 0);
 	return;
 }
 
