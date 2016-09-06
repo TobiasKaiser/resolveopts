@@ -1,0 +1,4 @@
+* asynchronous implementation of respolveoptsd
+* asynchronous implementation of resolveopts_client
+* resolveoptsd: Interface discovery & evaluation
+* resolveoptsd: Request tagging
