@@ -28,43 +28,31 @@ void *xmalloc(size_t s) {
 	return ret;
 }
 
-
-void handle_socket(int connfd) {
-	struct Request *req=NULL;
-	
-	int reti;
-	
-	/* Read request */
-	if(debug)
-		printf("fd %i: connected, reading request now\n", connfd);
-
-	if(ber_read_helper(&asn_DEF_Request, (void **) &req, connfd)<0) {
-		goto error;
-	}
-	if(debug) {
-		printf("fd %i: request decoded:\n", connfd);
-		asn_fprint(stdout, &asn_DEF_Request, req);
-	}
-
-	/* Create response */
-	struct Response *resp=NULL;
-	resp=xmalloc(sizeof(struct Response));
-
-
+struct addrinfo *prepare_for_getaddrinfo(struct Request *req, struct addrinfo *hints, char **nodename, char **servname) {
 	/* Perform requested name resolution
  	 * At the moment, we just do a native name resolution here.
 	 */
-	struct addrinfo hints, *res=NULL;
-	memset(&hints, 0, sizeof(struct addrinfo));
+
+	struct addrinfo *return_hints=NULL;
+	
+	
+	memset(hints, 0, sizeof(struct addrinfo));
 	if(req->hints) {
-		hints.ai_family=req->hints->aiFamily;
-		hints.ai_socktype=req->hints->aiSocktype;
-		hints.ai_protocol=req->hints->aiProtocol;
-		hints.ai_flags=req->hints->aiFlags;
+		hints->ai_family=req->hints->aiFamily;
+		hints->ai_socktype=req->hints->aiSocktype;
+		hints->ai_protocol=req->hints->aiProtocol;
+		hints->ai_flags=req->hints->aiFlags;
+		return_hints=hints;
 	}
 
-	reti=getaddrinfo((char*)req->node.buf, (char*)req->service.buf, req->hints?&hints:NULL, &res);
+	*nodename = (char*)req->node.buf;
+	*servname = (char*)req->service.buf;
 
+	return return_hints;
+}
+
+
+int postprocess_for_getaddrinfo(struct Response *resp, struct addrinfo *res, int reti) {
 	if(reti==EAI_SYSTEM) {
 		resp->present=Response_PR_systemError;
 		resp->choice.systemError=errno;
@@ -112,7 +100,7 @@ void handle_socket(int connfd) {
 			default:
 				printf("unresolvable return code %i from getaddrinfo translated to EAI_AGAIN\n", reti);
 				resp->choice.gaiError=Response__gaiError_eaiAgain;
-				goto error;
+				return 1;
 		}
 	} else {
 		assert(res);
@@ -125,18 +113,49 @@ void handle_socket(int connfd) {
 		resp->choice.addrinfo.aiFamily=res->ai_family;
 		resp->choice.addrinfo.aiSocktype=res->ai_socktype;
 		resp->choice.addrinfo.aiProtocol=res->ai_protocol;
-		printf("a\n");
 
 		if(res->ai_canonname) {
 			if(OCTET_STRING_fromString(resp->choice.addrinfo.aiCanonname, res->ai_canonname)<0) {
 				printf("failed to encode octet string");
-				goto error;
+				return 1;
 			}
 		}
 		if(OCTET_STRING_fromBuf(&resp->choice.addrinfo.aiAddr, (char *) res->ai_addr, res->ai_addrlen)<0) {
 			printf("failed to encode octet string");
-			goto error;
+			return 1;
 		}
+	}
+	return 0;
+}
+
+
+void handle_socket(int connfd) {
+	struct Request *req=NULL;
+	struct Response *resp=NULL;
+	struct addrinfo hints_mem, *hints_p=NULL, *res=NULL;
+	char *nodename=NULL, *servname=NULL;
+	
+	int reti;
+	
+	/* Read request */
+	if(debug)
+		printf("fd %i: connected, reading request now\n", connfd);
+
+	if(ber_read_helper(&asn_DEF_Request, (void **) &req, connfd)<0) {
+		goto error;
+	}
+	if(debug) {
+		printf("fd %i: request decoded:\n", connfd);
+		asn_fprint(stdout, &asn_DEF_Request, req);
+	}
+
+	/* Create response */
+	resp=xmalloc(sizeof(struct Response));
+
+	hints_p=prepare_for_getaddrinfo(req, &hints_mem, &nodename, &servname);
+	reti=getaddrinfo(nodename, servname, hints_p, &res);
+	if(postprocess_for_getaddrinfo(resp, res, reti)) {
+		goto error;
 	}
 
 	/* Send response */

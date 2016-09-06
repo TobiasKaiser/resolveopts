@@ -1,6 +1,6 @@
 ASN1_OBJS=asn1/*.o
 
-CFLAGS=-g -fPIC -Wall -Wno-unused-variable -Iasn1 -I../include
+CFLAGS=-g -fPIC -Werror -Wfatal-errors -Wall -Wno-unused-variable -Iasn1 -I../include
 CC=gcc
 
 export CFLAGS
