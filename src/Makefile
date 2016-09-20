@@ -1,6 +1,6 @@
 ASN1_OBJS=asn1/*.o
 
-CFLAGS=-g -fPIC -Werror -Wfatal-errors -Wall -Wno-unused-variable -Iasn1 -I../include
+CFLAGS=-g -fPIC -Werror -Wfatal-errors -Wall -Wno-unused-variable -Iasn1 -I../include -save-temps
 CC=gcc
 
 export CFLAGS
@@ -20,7 +20,7 @@ asn1/resolveopts_asn1.a: asn1/Makefile asn1/resolveopts.asn1
 	ar rcs $@ $(ASN1_OBJS)
 
 resolveoptsd: resolveoptsd.o ber_rw_helper.o asn1/resolveopts_asn1.a
-	$(CC) -o $@ $^
+	$(CC) -luv -o $@ $^
 
 libresolveopts.so.1: resolveopts_client.o ber_rw_helper.o asn1/resolveopts_asn1.a
 	$(CC) -shared -Wl,-soname,libresolveopts.so.1 -o $@ $^

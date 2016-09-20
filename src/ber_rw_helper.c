@@ -14,7 +14,11 @@ static int write_stream(const void *buffer, size_t size, void *application_speci
 	int fd=*((int*) application_specific_key);
 
 	ssize_t bytes_written=write(fd, buffer, size);
-
+	int i;
+	for(i=0;i<size;i++) {
+		printf("%02x", ((char*)buffer)[i]);
+	}
+	printf("\n");
 	if(bytes_written!=size) {
 		
 		return -1;
@@ -60,5 +64,6 @@ int ber_write_helper(struct asn_TYPE_descriptor_s *type_descriptor, void *struct
 
 	asn_enc_rval_t retenc;
 	retenc=der_encode(type_descriptor, struct_ptr, write_stream, &writefd);
+
 	return (retenc.encoded>=0)?0:-1;
 }
