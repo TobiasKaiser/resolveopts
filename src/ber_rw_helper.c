@@ -14,13 +14,8 @@ static int write_stream(const void *buffer, size_t size, void *application_speci
 	int fd=*((int*) application_specific_key);
 
 	ssize_t bytes_written=write(fd, buffer, size);
-	int i;
-	for(i=0;i<size;i++) {
-		printf("%02x", ((char*)buffer)[i]);
-	}
-	printf("\n");
+
 	if(bytes_written!=size) {
-		
 		return -1;
 	}
 
@@ -44,7 +39,6 @@ int ber_read_helper(struct asn_TYPE_descriptor_s *type_descriptor, void **struct
 			printf("fd %i: received %zi bytes\n", readfd, bytes_read);
 		if(bytes_read==0) {
 			// end-of-file
-			printf("read reached eof\n");
 			return -1;
 		}
 		bytes_read+=bufferfill_lastread;

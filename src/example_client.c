@@ -11,18 +11,17 @@ int main(int argc, char *argv[]) {
 		printf("Usage: ./example_client NODE SERVICE\n");
 		exit(1);
 	}
-	struct resolveopts_addrinfo *res, hints;
+	struct ropts_addrinfo *res, hints;
 	int ret;
-	memset(&hints, 0, sizeof(struct resolveopts_addrinfo));
+	memset(&hints, 0, sizeof(struct ropts_addrinfo));
 	hints.ai_family=AF_INET;
 	hints.ai_socktype=SOCK_STREAM;
 	
-
-	ret=resolveopts_getaddrinfo(argv[1], argv[2], &hints, &res);
+	ret=ropts_getaddrinfo(argv[1], argv[2], &hints, &res);
 
 	if(ret) {
 		//...
-		printf("error=%i (\"%s\")\n", ret, resolveopts_gai_strerror(ret));
+		printf("error=%i (\"%s\")\n", ret, ropts_gai_strerror(ret));
 		return 1;
 	} else {
 		char hostname[NI_MAXHOST];
